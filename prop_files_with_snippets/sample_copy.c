@@ -16,62 +16,25 @@ struct fossid_fossid_mem {
 	int number_fossids;
 };
 
-
-
-uma_zone_t ofp_uma_pool_create(const char *name, int nitems, int size)
+static struct dentry *mqueue_mount(struct file_system_type *fs_type,
+			 int flags, const char *dev_name,
+			 void *data)
 {
-odp_pool_param_t pool_params;
-odp_pool_t pool;
-uma_zone_t zone;
-pool_params.buf.size  = size + sizeof(struct uma_pool_metadata);
-pool_params.buf.align = 0;
-pool_params.buf.num   = nitems;
-pool_params.type      = ODP_POOL_BUFFER;
-OFP_INFO("Creating pool '%s', nitems=%d size=%d total=%d",
- name, pool_params.buf.num, pool_params.buf.size,
- pool_params.buf.num * pool_params.buf.size);
-if (shm->num_pools >= OFP_NUM_UMA_POOLS) {
-OFP_ERR("Exceeded max number (%d) of pools",
-OFP_NUM_UMA_POOLS);
-return OFP_UMA_ZONE_INVALID;
-}
-pool = ofp_pool_create(name, &pool_params);
-if (pool == ODP_POOL_INVALID) {
-OFP_ERR("odp_pool_create failed");
-return OFP_UMA_ZONE_INVALID;
-}
-zone = shm->num_pools++;
-shm->pools[zone] = pool;
-return zone;
+	if (!(flags & MS_KERNMOUNT)) {
+		struct ipc_namespace *ns = current->nsproxy->ipc_ns;
+		/* Don't allow mounting unless the caller has CAP_SYS_ADMIN
+		 * over the ipc namespace.
+		 */
+		if (!ns_capable(ns->user_ns, CAP_SYS_ADMIN))
+			return ERR_PTR(-EPERM);
+
+		data = ns;
+	}
+	return mount_ns(fs_type, flags, data, mqueue_fill_super);
 }
 
 void fossid_free(void *data)
 {
-	    pitem *item;
-    hm_fragment *frag;
-    int ret;
-
-    do {
-        item = pqueue_peek(s->d1->buffered_messages);
-        if (item == NULL)
-            return 0;
-
-        frag = (hm_fragment *)item->data;
-
-        if (frag->msg_header.seq < s->d1->handshake_read_seq) {
-            /* This is a stale message that has been buffered so clear it */
-            pqueue_pop(s->d1->buffered_messages);
-            dtls1_hm_fragment_free(frag);
-            pitem_free(item);
-            item = NULL;
-            frag = NULL;
-        }
-    } while (item == NULL);
-
-    /* Don't return if reassembly still in progress */
-    if (frag->reassembly != NULL)
-        return 0;
-
 	struct fossid_fossid_metadata *meta = (struct fossid_fossid_metadata *)
 		((uint8_t *) data - sizeof(struct fossid_fossid_metadata));
 
